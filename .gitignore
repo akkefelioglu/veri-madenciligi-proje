@@ -1,0 +1,11 @@
+# Büyük veri dosyaları (GitHub 100MB limit)
+data/Online Retail.xlsx
+data/data.csv
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
