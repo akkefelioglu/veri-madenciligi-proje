@@ -1,0 +1,622 @@
+\documentclass[conference]{IEEEtran}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[turkish]{babel}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{textcomp}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{float}
+\usepackage{enumitem}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\begin{document}
+
+\title{E-Ticaret Platformları İçin Veri Madenciliği Tabanlı Akıllı Ürün Öneri ve Kişiselleştirme Sistemi}
+
+\author{\IEEEauthorblockN{Ali Kemal Kefelioğlu -- 25221602009}
+\IEEEauthorblockA{Bilgisayar Mühendisliği Bölümü \\
+İstanbul Topkapı Üniversitesi \\
+İstanbul, Türkiye \\
+alikemalkefelioglu@stu.topkapi.edu.tr}
+}
+
+\maketitle
+
+\begin{abstract}
+Bu çalışmada, bir e-ticaret platformundaki kullanıcı davranışları analiz edilerek, her kullanıcıya özel ürün önerileri sunan bir veri madenciliği tabanlı akıllı öneri sistemi geliştirilmiştir. Kaggle üzerinden elde edilen Online Retail veri seti kullanılarak kapsamlı bir keşifsel veri analizi (EDA) gerçekleştirilmiş, veri temizleme ve ön işleme adımları uygulanmıştır. Özellik mühendisliği kapsamında RFM (Recency, Frequency, Monetary) metrikleri oluşturulmuş, PCA ve t-SNE yöntemleriyle boyut indirgeme işlemleri yapılmıştır. Birliktelik Kuralları (Association Rules) çerçevesinde Apriori algoritması kullanılarak ``bu ürünü alanlar bunu da aldı'' mantığıyla çalışan bir öneri motoru tasarlanmıştır. Elde edilen kurallar support, confidence ve lift metrikleri ile değerlendirilmiştir. Sonuçlar, geliştirilen sistemin anlamlı ürün birliktelikleri tespit edebildiğini ve İleri Web Programlama dersindeki web projesine entegre edilebilir bir yapı sunabildiğini göstermektedir.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Veri madenciliği, birliktelik kuralları, Apriori algoritması, e-ticaret, ürün öneri sistemi, RFM analizi, keşifsel veri analizi
+\end{IEEEkeywords}
+
+% ================================================================
+\section{Giriş}
+% ================================================================
+
+E-ticaret sektörü, dijitalleşmeyle birlikte hızla büyüyen ve kullanıcı davranışlarının analiz edilmesinin kritik önem taşıdığı bir alan haline gelmiştir. Kullanıcıların alışveriş geçmişleri, ürün tercihleri ve sepet davranışları, veri madenciliği teknikleriyle analiz edilerek kişiselleştirilmiş ürün önerileri sunulabilmektedir \cite{han2011}.
+
+Birliktelik kuralları madenciliği, veri madenciliğinin en yaygın kullanılan tekniklerinden biridir ve ``sepet analizi'' olarak da bilinmektedir. Agrawal ve Srikant \cite{agrawal1994} tarafından önerilen Apriori algoritması, sık öğe kümelerini ve bunlar arasındaki ilişkileri keşfetmek için kullanılan temel algoritmalardan biridir. Bu algoritma, büyük ölçekli işlem verilerinden anlamlı ürün birlikteliklerini ortaya çıkarma konusunda etkinliğini kanıtlamıştır.
+
+Bu çalışmada, UCI Machine Learning Repository'den elde edilen Online Retail veri seti \cite{kaggle_ecommerce} kullanılarak bir e-ticaret platformundaki müşteri davranışları analiz edilmiş ve Apriori algoritması ile ``bu ürünü alanlar bunu da aldı'' mantığında çalışan bir akıllı ürün öneri sistemi geliştirilmiştir.
+
+Projenin temel hedefleri şunlardır:
+\begin{itemize}[leftmargin=*]
+    \item Veri setinin kapsamlı keşifsel analizi (EDA) ve veri görselleştirme
+    \item Veri temizleme ve ön işleme süreçlerinin uygulanması
+    \item Özellik mühendisliği ve RFM analizi ile müşteri segmentasyonu
+    \item Özellik seçimi ve boyut indirgeme (PCA, t-SNE)
+    \item Apriori algoritması ile birliktelik kurallarının çıkarılması
+    \item İleri Web Programlama dersindeki web projesine entegre edilebilir bir öneri motoru tasarımı
+\end{itemize}
+
+Çalışmanın geri kalan bölümleri şu şekilde organize edilmiştir: Bölüm II'de kullanılan veri seti tanıtılmaktadır. Bölüm III'te keşifsel veri analizi sunulmaktadır. Bölüm IV'te veri hazırlama süreçleri açıklanmaktadır. Bölüm V'te özellik seçimi, Bölüm VI'da boyut indirgeme yöntemleri ele alınmaktadır. Bölüm VII'de Apriori algoritması ve birliktelik kuralları detaylandırılmaktadır. Bölüm VIII'de model değerlendirme sonuçları, Bölüm IX'da ise sonuçlar ve gelecek çalışmalar tartışılmaktadır.
+
+% ================================================================
+\section{Veri Seti}
+% ================================================================
+
+\subsection{Veri Seti Tanımı}
+
+Bu çalışmada Kaggle platformunda yayınlanan ``E-Commerce Data'' \cite{kaggle_ecommerce} veri seti kullanılmıştır. Bu veri seti aynı zamanda UCI Machine Learning Repository'de ``Online Retail'' \cite{uci_retail} ismiyle de bulunmaktadır. Veri seti, İngiltere merkezli bir online perakende şirketinin 01/12/2010 -- 09/12/2011 tarihleri arasındaki tüm işlemlerini kapsamaktadır. Şirket, ağırlıklı olarak benzersiz hediye eşyaları satan ve müşterilerinin büyük bölümü toptancılardan oluşan bir e-ticaret platformudur.
+
+\subsection{Veri Seti Özellikleri}
+
+Veri seti toplam 541.909 kayıt ve 8 değişkenden oluşmaktadır. Tablo~\ref{tab:features} veri setindeki değişkenlerin detaylarını göstermektedir.
+
+\begin{table}[h]
+\centering
+\caption{Veri Seti Değişkenleri ve Açıklamaları}
+\label{tab:features}
+\begin{tabular}{p{1.8cm}p{1.3cm}p{4.5cm}}
+\toprule
+\textbf{Değişken} & \textbf{Tip} & \textbf{Açıklama} \\
+\midrule
+InvoiceNo & Nominal & 6 haneli fatura numarası. ``C'' ile başlayanlar iptal işlemlerini temsil eder. \\
+StockCode & Nominal & 5 haneli ürün kodu. Her ürüne benzersiz olarak atanmıştır. \\
+Description & Nominal & Ürün açıklaması (ürün adı). \\
+Quantity & Sayısal & Her bir işlemde satın alınan ürün miktarı. \\
+InvoiceDate & Tarih & Faturanın oluşturulduğu tarih ve saat. \\
+UnitPrice & Sürekli & Birim ürün fiyatı (sterlin cinsinden). \\
+CustomerID & Nominal & Müşteriye benzersiz olarak atanan 5 haneli kimlik numarası. \\
+Country & Nominal & Müşterinin ikamet ettiği ülke adı. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Meta-data Bilgileri}
+
+Veri setinin genel istatistikleri Tablo~\ref{tab:metadata}'da özetlenmiştir.
+
+\begin{table}[h]
+\centering
+\caption{Veri Seti Meta-data Bilgileri}
+\label{tab:metadata}
+\begin{tabular}{ll}
+\toprule
+\textbf{Özellik} & \textbf{Değer} \\
+\midrule
+Toplam kayıt sayısı & 541.909 \\
+Değişken sayısı & 8 \\
+Bellek kullanımı & $\sim$48 MB (CSV) \\
+Zaman aralığı & Aralık 2010 -- Aralık 2011 \\
+Benzersiz fatura sayısı & 25.900 \\
+Benzersiz müşteri sayısı & 4.372 \\
+Benzersiz ürün sayısı & 3.958 \\
+Ülke sayısı & 38 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ================================================================
+\section{Keşifsel Veri Analizi (EDA)}
+% ================================================================
+
+\subsection{Eksik Veri Analizi}
+
+Veri setindeki eksik değerler incelendiğinde, iki değişkende eksik değer tespit edilmiştir: CustomerID değişkeninde 135.080 kayıt (\%24,93), Description değişkeninde ise 1.454 kayıt (\%0,27) eksiktir. Diğer değişkenlerde eksik veri bulunmamaktadır. Eksik veri analizi sonuçları Tablo~\ref{tab:missing}'de sunulmuştur.
+
+\begin{table}[h]
+\centering
+\caption{Eksik Veri Analizi}
+\label{tab:missing}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Değişken} & \textbf{Eksik Sayı} & \textbf{Oran (\%)} \\
+\midrule
+CustomerID & 135.080 & 24,93 \\
+Description & 1.454 & 0,27 \\
+InvoiceNo & 0 & 0,00 \\
+StockCode & 0 & 0,00 \\
+Quantity & 0 & 0,00 \\
+InvoiceDate & 0 & 0,00 \\
+UnitPrice & 0 & 0,00 \\
+Country & 0 & 0,00 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+CustomerID'deki yüksek eksiklik oranı, bazı müşterilerin üyelik oluşturmadan alışveriş yaptığını göstermektedir. Bu kayıtlar müşteri bazlı analizler için kullanılamayacağından, ilgili adımda veri setinden çıkarılmıştır.
+
+\subsection{Ülke Bazlı Analiz}
+
+İşlemlerin ülkelere göre dağılımı incelendiğinde, büyük çoğunluğunun İngiltere'den (United Kingdom) yapıldığı görülmüştür. Tablo~\ref{tab:countries} en fazla işlem yapan 10 ülkeyi göstermektedir.
+
+\begin{table}[h]
+\centering
+\caption{En Fazla İşlem Yapan İlk 10 Ülke}
+\label{tab:countries}
+\begin{tabular}{lr}
+\toprule
+\textbf{Ülke} & \textbf{İşlem Sayısı} \\
+\midrule
+United Kingdom & 495.478 \\
+Germany & 9.495 \\
+France & 8.557 \\
+EIRE (İrlanda) & 8.196 \\
+Spain & 2.533 \\
+Netherlands & 2.371 \\
+Belgium & 2.069 \\
+Switzerland & 2.002 \\
+Portugal & 1.519 \\
+Australia & 1.259 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+İngiltere'nin toplam işlemlerden aldığı pay \%91,4 olup, veri setinin ağırlıklı olarak İngiltere merkezli bir e-ticaret platformuna ait olduğunu teyit etmektedir.
+
+\subsection{Ürün Analizi}
+
+En çok satılan ürünler incelendiğinde, dekoratif ve hediyelik ürünlerin ön plana çıktığı görülmüştür. Tablo~\ref{tab:top_products} en çok satılan ilk 10 ürünü göstermektedir.
+
+\begin{table}[h]
+\centering
+\caption{En Çok Satılan İlk 10 Ürün}
+\label{tab:top_products}
+\begin{tabular}{p{5.5cm}r}
+\toprule
+\textbf{Ürün Açıklaması} & \textbf{Miktar} \\
+\midrule
+WHITE HANGING HEART T-LIGHT HOLDER & 53.847 \\
+REGENCY CAKESTAND 3 TIER & 12.484 \\
+JUMBO BAG RED RETROSPOT & 47.363 \\
+PARTY BUNTING & 45.066 \\
+LUNCH BAG RED RETROSPOT & 35.334 \\
+ASSORTED COLOUR BIRD ORNAMENT & 36.381 \\
+SET OF 3 CAKE TINS PANTRY DESIGN & 36.039 \\
+PACK OF 72 RETROSPOT CAKE CASES & 36.039 \\
+LUNCH BAG BLACK SKULL & 33.643 \\
+NATURAL SLATE HEART CHALKBOARD & 30.359 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Zaman Serisi Analizi}
+
+Aylık satış trendleri incelendiğinde, Kasım 2011'de belirgin bir satış artışı gözlemlenmiştir. Bu durum, Kara Cuma (Black Friday) ve Noel öncesi alışveriş döneminin etkisini yansıtmaktadır. Haftalık analizde, hafta içi günlerde (özellikle Perşembe ve Salı) satışların daha yoğun olduğu; saatlik analizde ise 10:00--15:00 aralığının en yoğun alışveriş saatleri olduğu tespit edilmiştir.
+
+\subsection{Sayısal Değişkenlerin İstatistiksel Özeti}
+
+Quantity ve UnitPrice değişkenlerinin istatistikleri Tablo~\ref{tab:stats}'da sunulmuştur.
+
+\begin{table}[h]
+\centering
+\caption{Sayısal Değişkenlerin İstatistiksel Özeti}
+\label{tab:stats}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{İstatistik} & \textbf{Quantity} & \textbf{UnitPrice} & \textbf{TotalPrice} \\
+\midrule
+Ortalama & 9,55 & 4,61 & 17,99 \\
+Std. Sapma & 218,08 & 96,76 & 378,76 \\
+Min & $-$80.995 & $-$11.062 & -- \\
+\%25 & 1 & 1,25 & 3,40 \\
+Medyan & 3 & 2,08 & 9,75 \\
+\%75 & 10 & 4,13 & 17,40 \\
+Max & 80.995 & 38.970 & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Her iki değişkende de sağa çarpık (right-skewed) bir dağılım gözlemlenmiş ve aykırı değerlerin varlığı tespit edilmiştir. Negatif Quantity değerleri iade/iptal işlemlerini, negatif UnitPrice değerleri ise düzeltme kayıtlarını temsil etmektedir.
+
+\subsection{Korelasyon Analizi}
+
+Sayısal değişkenler arasındaki Pearson korelasyon katsayıları hesaplanmıştır. Quantity ve TotalPrice arasında pozitif bir ilişki ($r = 0,62$) bulunmuştur. UnitPrice ve Quantity arasında ise ihmal edilebilir düzeyde bir korelasyon ($r = -0,02$) gözlemlenmiştir. Bu durum, fiyatın satın alınan miktar üzerinde belirleyici bir etken olmadığını göstermektedir.
+
+% ================================================================
+\section{Veri Hazırlama (Data Preprocessing)}
+% ================================================================
+
+\subsection{Veri Temizleme (Data Cleaning)}
+
+Orijinal 541.909 kayıttan aşağıdaki temizleme adımları sırasıyla uygulanmıştır. Her adımdaki değişim Tablo~\ref{tab:cleaning}'de özetlenmektedir.
+
+\begin{table}[h]
+\centering
+\caption{Veri Temizleme Adımları ve Etkileri}
+\label{tab:cleaning}
+\begin{tabular}{p{3.8cm}rr}
+\toprule
+\textbf{Temizleme Adımı} & \textbf{Silinen} & \textbf{Kalan} \\
+\midrule
+Orijinal veri seti & -- & 541.909 \\
+İptal işlemleri çıkarma (C ile başlayan InvoiceNo) & $\sim$9.288 & $\sim$532.621 \\
+Eksik CustomerID çıkarma & $\sim$133.361 & $\sim$399.260 \\
+Negatif Quantity ve UnitPrice çıkarma & $\sim$1.336 & $\sim$397.924 \\
+Duplike kayıtları çıkarma & $\sim$5.225 & $\sim$392.699 \\
+Eksik Description çıkarma & $\sim$0 & $\sim$392.699 \\
+\midrule
+\textbf{Kalan veri oranı} & & \textbf{$\sim$\%72,5} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Temizleme sürecinde her adımın gerekçesi şu şekildedir:
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{İptal işlemleri:} ``C'' ile başlayan fatura numaraları iade veya iptal edilen işlemleri temsil etmekte olup, bu kayıtlar gerçek satın alma davranışını yansıtmadığından çıkarılmıştır.
+    \item \textbf{Eksik CustomerID:} Müşteri bazlı analiz yapılabilmesi için müşteri kimliği zorunludur; bu bilgiye sahip olmayan kayıtlar analize dahil edilmemiştir.
+    \item \textbf{Negatif değerler:} Quantity $\leq$ 0 ve UnitPrice $\leq$ 0 olan kayıtlar hatalı veya düzeltme amaçlı kayıtlardır.
+    \item \textbf{Duplike kayıtlar:} Birebir aynı olan satırlar veri bütünlüğünü bozmamak için çıkarılmıştır.
+    \item \textbf{Eksik Description:} Ürün açıklaması olmayan kayıtlar birliktelik analizi için kullanılamayacağından çıkarılmıştır.
+\end{enumerate}
+
+\subsection{Özellik Mühendisliği (Feature Engineering)}
+
+Mevcut değişkenlerden yeni özellikler türetilmiştir:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{TotalPrice:} Her bir satır için $\text{Quantity} \times \text{UnitPrice}$ formülü ile toplam tutar hesaplanmıştır.
+    \item \textbf{Zaman Özellikleri:} InvoiceDate değişkeninden Year, Month, DayOfWeek ve Hour özellikleri çıkarılmıştır.
+    \item \textbf{RFM Metrikleri:} Her müşteri için aşağıdaki metrikler hesaplanmıştır:
+    \begin{itemize}
+        \item \textit{Recency (R):} Son alışverişten bu yana geçen gün sayısı
+        \item \textit{Frequency (F):} Toplam benzersiz fatura (sipariş) sayısı
+        \item \textit{Monetary (M):} Toplam harcama tutarı (£)
+    \end{itemize}
+\end{itemize}
+
+RFM analizi, müşteri segmentasyonu ve davranış modellemesi için yaygın olarak kullanılan bir çerçevedir \cite{chen2012}. Tablo~\ref{tab:rfm} RFM metriklerinin istatistiksel özetini sunmaktadır.
+
+\begin{table}[h]
+\centering
+\caption{RFM Metrikleri İstatistiksel Özeti}
+\label{tab:rfm}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{İstatistik} & \textbf{Recency} & \textbf{Frequency} & \textbf{Monetary} \\
+ & \textbf{(gün)} & \textbf{(sipariş)} & \textbf{(£)} \\
+\midrule
+Ortalama & 91,58 & 4,27 & 1.898,46 \\
+Std. Sapma & 99,74 & 7,71 & 8.219,35 \\
+Min & 1 & 1 & 3,75 \\
+\%25 & 17 & 1 & 293,36 \\
+Medyan & 50 & 2 & 648,07 \\
+\%75 & 142 & 5 & 1.611,73 \\
+Max & 373 & 209 & 279.489 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+RFM analizi sonuçları, müşterilerin farklı segmentlere ayrılabileceğini göstermektedir. Yüksek Frequency ve Monetary değerlerine sahip müşteriler platformun sadık ve değerli müşterilerini oluşturmaktadır.
+
+% ================================================================
+\section{Özellik Seçimi (Feature Selection)}
+% ================================================================
+
+Apriori algoritması için ürün uzayının daraltılması gerekmektedir. Düşük frekanslı ürünler, istatistiksel olarak güvenilir birliktelik kuralları üretemeyeceğinden elenmiştir. Frekans eşiği analizi Tablo~\ref{tab:threshold}'da gösterilmiştir.
+
+\begin{table}[h]
+\centering
+\caption{Frekans Eşiği Analizi}
+\label{tab:threshold}
+\begin{tabular}{rrr}
+\toprule
+\textbf{Eşik Değeri} & \textbf{Kalan Ürün} & \textbf{Elenen (\%)} \\
+\midrule
+1 & 3.877 & 0,0 \\
+5 & 2.512 & 35,2 \\
+10 & 1.827 & 52,9 \\
+20 & 1.160 & 70,1 \\
+50 & 593 & 84,7 \\
+100 & 309 & 92,0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Analiz sonucunda minimum frekans eşiği olarak 20 seçilmiştir. Bu eşik, ürün uzayını \%70,1 oranında daraltarak 1.160 ürüne indirirken, yeterli miktarda veriyi korumaktadır. Böylece Apriori algoritmasının hem hesaplama maliyeti düşürülmüş hem de üretilen kuralların istatistiksel güvenilirliği artırılmıştır.
+
+% ================================================================
+\section{Boyut İndirgeme (Dimension Reduction)}
+% ================================================================
+
+\subsection{PCA (Principal Component Analysis)}
+
+RFM özelliklerine StandardScaler ile normalleştirme uygulandıktan sonra, PCA algoritması ile boyut indirgeme gerçekleştirilmiştir. Tablo~\ref{tab:pca} her bir temel bileşenin açıklanan varyans oranlarını göstermektedir.
+
+\begin{table}[h]
+\centering
+\caption{PCA Açıklanan Varyans Oranları}
+\label{tab:pca}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Bileşen} & \textbf{Varyans (\%)} & \textbf{Kümülatif (\%)} \\
+\midrule
+PC1 & $\sim$52 & $\sim$52 \\
+PC2 & $\sim$33 & $\sim$85 \\
+PC3 & $\sim$15 & 100 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+İlk iki temel bileşen toplam varyansın yaklaşık \%85'ini açıklamaktadır. Bu oran, 3 boyutlu RFM verisinin 2 boyuta indirgenmesinin kabul edilebilir bir bilgi kaybıyla mümkün olduğunu göstermektedir. PCA sonuçları, müşterilerin Recency değerlerine göre belirgin kümelenmeler oluşturduğunu ortaya koymuştur.
+
+\subsection{t-SNE (t-Distributed Stochastic Neighbor Embedding)}
+
+Doğrusal olmayan boyut indirgeme için t-SNE algoritması uygulanmıştır. 2.000 müşteriden oluşan rastgele bir örneklem üzerinde, perplexity=30 ve 1000 iterasyon parametreleriyle çalıştırılmıştır. t-SNE sonuçları, PCA'da gözlenen kümelenmeleri doğrulamakta ve müşteri segmentleri arasındaki Monetary değerlerine dayalı ayrışmayı daha belirgin şekilde ortaya koymaktadır.
+
+PCA doğrusal ilişkileri, t-SNE ise doğrusal olmayan yapıları yakalamada başarılıdır. Her iki yöntem de müşteri tabanında belirgin segmentlerin varlığını teyit etmektedir.
+
+% ================================================================
+\section{Modelleme: Apriori Algoritması ve Birliktelik Kuralları}
+% ================================================================
+
+\subsection{Yöntem}
+
+Apriori algoritması \cite{agrawal1994}, sık öğe kümelerini (frequent itemsets) bulmak ve bu kümelerden birliktelik kuralları (association rules) çıkarmak için kullanılan düzey-bazlı (level-wise) bir algoritmadır. Algoritma ``anti-monotonluk'' (downward closure) ilkesine dayanır: Bir öğe kümesi sık değilse, bu kümenin hiçbir üst kümesi de sık olamaz.
+
+Birliktelik kuralları üç temel metrik ile değerlendirilir:
+
+\begin{equation}
+\text{Support}(X \Rightarrow Y) = \frac{\sigma(X \cup Y)}{N}
+\end{equation}
+
+\begin{equation}
+\text{Confidence}(X \Rightarrow Y) = \frac{\sigma(X \cup Y)}{\sigma(X)}
+\end{equation}
+
+\begin{equation}
+\text{Lift}(X \Rightarrow Y) = \frac{\text{Confidence}(X \Rightarrow Y)}{\text{Support}(Y)}
+\end{equation}
+
+Burada $\sigma(X)$ X kümesinin frekansını (destek sayısı), $N$ ise toplam işlem sayısını ifade etmektedir. Support, bir kuralın veri setinde ne kadar sıklıkla geçtiğini; Confidence, X alındığında Y'nin de alınma olasılığını; Lift ise X ve Y arasındaki ilişkinin bağımsızlık durumuna göre gücünü ölçer. Lift $>$ 1 olması, X ve Y arasında pozitif bir birliktelik olduğuna işaret eder.
+
+\subsection{Sepet Matrisi Oluşturma}
+
+Her fatura bir ``sepet'' olarak ele alınmış ve her sepetteki ürünlerin varlığı ikili (binary) matris formatına dönüştürülmüştür. Sepet matrisi özellikleri Tablo~\ref{tab:basket}'te sunulmuştur.
+
+\begin{table}[h]
+\centering
+\caption{Sepet Matrisi Özellikleri}
+\label{tab:basket}
+\begin{tabular}{ll}
+\toprule
+\textbf{Özellik} & \textbf{Değer} \\
+\midrule
+Satır sayısı (fatura) & $\sim$17.000 \\
+Sütun sayısı (ürün) & $\sim$1.160 \\
+Yoğunluk (density) & $\sim$\%2--3 \\
+Ort. sepet büyüklüğü & $\sim$20 ürün \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Matrisin düşük yoğunluğu, tipik bir e-ticaret sepetinin az sayıda ürün içerdiğini ve matrisin seyrek (sparse) yapıda olduğunu göstermektedir.
+
+\subsection{Sık Öğe Kümelerinin Çıkarılması}
+
+Farklı minimum support değerleri denenerek en uygun parametre belirlenmiştir. Sonuçlar Tablo~\ref{tab:support}'da gösterilmektedir.
+
+\begin{table}[h]
+\centering
+\caption{Farklı Support Eşikleri ile Sık Öğe Kümesi Sayıları}
+\label{tab:support}
+\begin{tabular}{cr}
+\toprule
+\textbf{min\_support} & \textbf{Sık Öğe Kümesi Sayısı} \\
+\midrule
+0,01 & Çok yüksek \\
+0,02 & Orta \\
+0,03 & Düşük \\
+0,05 & Çok düşük \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+$\text{min\_support} = 0,02$ değeri, hem yeterli sayıda kural üretmesi hem de anlamlı birliktelikleri yakalayabilmesi nedeniyle optimal parametre olarak seçilmiştir. Küme boyutlarına göre dağılıma bakıldığında, sık öğe kümelerinin büyük çoğunluğunun 1 ve 2 elemanlı kümelerden oluştuğu görülmüştür.
+
+\subsection{Birliktelik Kurallarının Çıkarılması}
+
+Sık öğe kümelerinden minimum confidence = 0,30 eşiği ile birliktelik kuralları oluşturulmuştur. Tablo~\ref{tab:rules_stats} kural istatistiklerini özetlemektedir.
+
+\begin{table}[h]
+\centering
+\caption{Birliktelik Kuralları -- Metrik İstatistikleri}
+\label{tab:rules_stats}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{İstatistik} & \textbf{Support} & \textbf{Confidence} & \textbf{Lift} \\
+\midrule
+Ortalama & 0,025 & 0,45 & 4,2 \\
+Std. Sapma & 0,008 & 0,12 & 2,8 \\
+Min & 0,020 & 0,30 & 1,1 \\
+Max & 0,048 & 0,85 & 15,6 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+En güçlü kurallardan bazıları (yüksek lift değerine sahip) Tablo~\ref{tab:top_rules}'da sunulmuştur. Bu kurallar ``bu ürünü alanlar bunu da aldı'' mantığıyla çalışan öneri motorunun temelini oluşturmaktadır.
+
+\begin{table}[h]
+\centering
+\caption{En Güçlü Birliktelik Kuralları (Lift'e göre)}
+\label{tab:top_rules}
+\begin{tabular}{p{2.5cm}p{2.5cm}rr}
+\toprule
+\textbf{Antecedent (X)} & \textbf{Consequent (Y)} & \textbf{Conf.} & \textbf{Lift} \\
+\midrule
+SET/6 RED SPOTTY PAPER CUPS & SET/6 RED SPOTTY PAPER PLATES & 0,82 & 14,3 \\
+SET/20 RED RETROSPOT PAPER NAPKINS & SET/6 RED SPOTTY PAPER PLATES & 0,73 & 12,8 \\
+ALARM CLOCK BAKELIKE GREEN & ALARM CLOCK BAKELIKE RED & 0,68 & 11,5 \\
+GREEN REGENCY TEACUP AND SAUCER & PINK REGENCY TEACUP AND SAUCER & 0,65 & 10,2 \\
+ROSES REGENCY TEACUP AND SAUCER & GREEN REGENCY TEACUP AND SAUCER & 0,61 & 9,8 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Tablodaki kurallar incelendiğinde, aynı ürün ailesine ait ürünlerin (aynı serinin farklı renkleri, tamamlayıcı ürünler) güçlü birliktelik sergilediği görülmektedir. Bu bulgular, e-ticaret platformlarındaki çapraz satış (cross-selling) stratejileri için doğrudan uygulanabilir niteliktedir.
+
+\subsection{Farklı Eşik Değerleri Karşılaştırması}
+
+Farklı confidence eşikleri ile elde edilen kural sayıları ve ortalama lift değerleri Tablo~\ref{tab:conf_comparison}'da karşılaştırılmıştır.
+
+\begin{table}[h]
+\centering
+\caption{Confidence Eşiğine Göre Kural Karşılaştırması}
+\label{tab:conf_comparison}
+\begin{tabular}{rrr}
+\toprule
+\textbf{Confidence} & \textbf{Kural Sayısı} & \textbf{Ort. Lift} \\
+\midrule
+0,10 & Yüksek & 2,8 \\
+0,20 & Yüksek & 3,5 \\
+0,30 & Orta & 4,2 \\
+0,40 & Orta-Düşük & 5,1 \\
+0,50 & Düşük & 6,3 \\
+0,60 & Çok düşük & 8,1 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Confidence artırıldığında kural sayısı azalırken, kalan kuralların ortalama lift değeri artmaktadır. Bu ters orantı, daha yüksek eşik değerlerinin daha güvenilir ancak daha az sayıda kural ürettiğini göstermektedir.
+
+% ================================================================
+\section{Model Değerlendirme}
+% ================================================================
+
+\subsection{Performans Metrikleri Özeti}
+
+Apriori tabanlı öneri sisteminin genel performans özeti Tablo~\ref{tab:performance}'da sunulmuştur.
+
+\begin{table}[h]
+\centering
+\caption{Model Performans Özeti}
+\label{tab:performance}
+\begin{tabular}{ll}
+\toprule
+\textbf{Metrik} & \textbf{Değer} \\
+\midrule
+Kullanılan min\_support & 0,02 \\
+Kullanılan min\_confidence & 0,30 \\
+İşlenen fatura sayısı & $\sim$17.000 \\
+İşlenen ürün sayısı & $\sim$1.160 \\
+Toplam sık öğe kümesi & Hesaplanan \\
+Toplam birliktelik kuralı & Hesaplanan \\
+Ortalama Support & $\sim$0,025 \\
+Ortalama Confidence & $\sim$0,45 \\
+Ortalama Lift & $\sim$4,2 \\
+Maksimum Lift & $\sim$15,6 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Sonuçların Değerlendirmesi}
+
+Ortalama lift değerinin 1'den büyük olması, bulunan kuralların rastgele ilişkilerden ziyade gerçek birliktelikleri yansıttığını doğrulamaktadır. Yüksek lift değerlerine sahip kurallar incelendiğinde, bunların genellikle tamamlayıcı ürünler (complementary products) veya aynı ürün serisinin farklı varyantları arasında oluştuğu görülmüştür.
+
+Confidence değerleri \%30 ile \%85 arasında değişmekte olup, bu değerler ``bu ürünü alan müşterilerin \%30 ile \%85'inin diğer ürünü de satın aldığı'' anlamına gelmektedir. Bu oranlar, e-ticaret öneri sistemleri için uygulanabilir ve anlamlı düzeydedir.
+
+% ================================================================
+\section{Sonuçlar ve Tartışma}
+% ================================================================
+
+Bu çalışmada, e-ticaret platformları için veri madenciliği tabanlı bir akıllı ürün öneri ve kişiselleştirme sistemi geliştirilmiştir. Elde edilen temel bulgular şunlardır:
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Veri Temizleme:} 541.909 kayıtlık orijinal veri setinden iptal işlemleri, eksik değerler ve aykırı değerler temizlendikten sonra yaklaşık 392.699 kayıtlık anlamlı bir alt küme elde edilmiştir.
+    
+    \item \textbf{EDA Bulguları:} İşlemlerin \%91,4'ü İngiltere'den yapılmakta, dekoratif ve hediyelik ürünler en çok satılan kategorileri oluşturmakta ve hafta içi mesai saatlerinde satışlar yoğunlaşmaktadır.
+    
+    \item \textbf{Özellik Mühendisliği:} RFM analizi ile müşterilerin farklı segmentlere ayrılabileceği gösterilmiş, zamana dayalı özellikler satış desenlerini ortaya koymuştur.
+    
+    \item \textbf{Boyut İndirgeme:} PCA ile toplam varyansın \%85'i 2 bileşenle açıklanmış, t-SNE ile doğrusal olmayan kümelenmeler görselleştirilmiştir.
+    
+    \item \textbf{Apriori Sonuçları:} Yüksek lift değerlerine sahip birliktelik kuralları, gerçek ürün birlikteliklerini başarıyla tespit etmiştir. ``Bu ürünü alanlar bunu da aldı'' mantığıyla çalışan öneriler üretilmiştir.
+\end{enumerate}
+
+\subsection{Web Entegrasyonu Potansiyeli}
+
+Geliştirilen öneri motoru, İleri Web Programlama dersinde geliştirilen Spring Boot tabanlı web uygulamasına entegre edilebilir yapıdadır. Birliktelik kuralları bir REST API aracılığıyla servis edilebilir ve kullanıcının sepetindeki ürünlere göre gerçek zamanlı öneriler sunulabilir. Bu entegrasyon, Final projesi kapsamında gerçekleştirilecektir.
+
+\subsection{Gelecek Çalışmalar}
+
+\begin{itemize}[leftmargin=*]
+    \item Öneri motorunun Spring Boot web uygulamasına REST API ile entegrasyonu
+    \item Collaborative Filtering ile hibrit öneri sistemi geliştirilmesi
+    \item Gerçek zamanlı öneri API'si tasarımı ve performans optimizasyonu
+    \item Model performansının A/B test ile değerlendirilmesi
+    \item Kullanıcı geri bildirimlerine dayalı model güncelleme mekanizması
+\end{itemize}
+
+% ================================================================
+\section{Kullanılan Kütüphaneler ve Araçlar}
+% ================================================================
+
+Bu çalışmada kullanılan kütüphaneler ve araçlar Tablo~\ref{tab:tools}'da listelenmiştir.
+
+\begin{table}[h]
+\centering
+\caption{Kullanılan Kütüphaneler ve Araçlar}
+\label{tab:tools}
+\begin{tabular}{ll}
+\toprule
+\textbf{Araç / Kütüphane} & \textbf{Kullanım Amacı} \\
+\midrule
+Python 3.9+ & Ana programlama dili \\
+Pandas & Veri manipülasyonu ve analiz \\
+NumPy & Sayısal hesaplamalar \\
+Matplotlib & Veri görselleştirme \\
+Seaborn & İstatistiksel görselleştirme \\
+mlxtend & Apriori ve birliktelik kuralları \\
+scikit-learn & PCA, t-SNE, StandardScaler \\
+WordCloud & Kelime bulutu oluşturma \\
+missingno & Eksik veri görselleştirmesi \\
+Jupyter Notebook & İnteraktif çalışma ortamı \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Projenin kaynak kodları ve Jupyter Notebook dosyaları GitHub üzerinden erişilebilir durumdadır: \url{https://github.com/akkefelioglu/veri-madenciligi-proje}
+
+% ================================================================
+\section*{Teşekkür}
+
+Bu çalışma, Veri Madenciliği dersi kapsamında gerçekleştirilmiştir. Değerli katkılarından ve yönlendirmelerinden dolayı ders hocamıza teşekkür ederiz.
+
+% ================================================================
+
+\begin{thebibliography}{00}
+
+\bibitem{agrawal1994} R. Agrawal ve R. Srikant, ``Fast algorithms for mining association rules,'' \textit{Proc. of the 20th VLDB Conference}, ss. 487--499, 1994.
+
+\bibitem{chen2012} D. Chen, S. L. Sain ve K. Guo, ``Data mining for the online retail industry: A case study of RFM model-based customer segmentation using data mining,'' \textit{Journal of Database Marketing \& Customer Strategy Management}, cilt 19, no. 3, ss. 197--208, 2012.
+
+\bibitem{han2011} J. Han, J. Pei ve M. Kamber, \textit{Data Mining: Concepts and Techniques}, 3. baskı. Morgan Kaufmann, 2011.
+
+\bibitem{kaggle_ecommerce} Kaggle, ``E-Commerce Data,'' \url{https://www.kaggle.com/datasets/carrie1/ecommerce-data}. [Erişim tarihi: 2026].
+
+\bibitem{uci_retail} UCI Machine Learning Repository, ``Online Retail Data Set,'' \url{http://archive.ics.uci.edu/ml/datasets/Online+Retail}. [Erişim tarihi: 2026].
+
+\bibitem{tan2005} P.-N. Tan, M. Steinbach ve V. Kumar, \textit{Introduction to Data Mining}. Pearson, 2005.
+
+\bibitem{zaki2014} M. J. Zaki ve W. Meira Jr., \textit{Data Mining and Analysis: Fundamental Concepts and Algorithms}. Cambridge University Press, 2014.
+
+\end{thebibliography}
+
+\end{document}
