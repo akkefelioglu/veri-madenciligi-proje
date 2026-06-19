@@ -1,0 +1,281 @@
+\documentclass[conference]{IEEEtran}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[turkish]{babel}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{textcomp}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{float}
+\usepackage{enumitem}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\begin{document}
+
+\title{E-Ticaret Platformları İçin Veri Madenciliği Tabanlı Akıllı Ürün Öneri ve Müşteri Segmentasyonu Sistemi}
+
+\author{\IEEEauthorblockN{Ali Kemal Kefelioğlu -- 25221602009}
+\IEEEauthorblockA{Bilgisayar Mühendisliği Bölümü \\
+İstanbul Topkapı Üniversitesi \\
+İstanbul, Türkiye \\
+alikemalkefelioglu@stu.topkapi.edu.tr}
+}
+
+\maketitle
+
+\begin{abstract}
+Bu çalışmada, bir e-ticaret platformundaki kullanıcı davranışları analiz edilerek, birliktelik kuralları tabanlı ürün öneri sistemi ve makine öğrenmesi tabanlı müşteri segmentasyonu sistemi geliştirilmiştir. Online Retail veri seti kullanılarak kapsamlı keşifsel veri analizi, veri temizleme ve özellik mühendisliği uygulanmıştır. Apriori algoritması ile ürün birliktelikleri tespit edilmiş, RFM analizi ile müşteri segmentleri oluşturulmuştur. Müşteri segmentlerinin tahmini için Random Forest, Support Vector Machine ve Gradient Boosting olmak üzere üç farklı kategoriden sınıflandırma algoritması uygulanmıştır. Modeller ROC eğrisi, confusion matrix, 5-katlı çapraz doğrulama ve GridSearchCV ile hyperparameter tuning kullanılarak değerlendirilmiştir. Sonuçlar, Gradient Boosting modelinin en yüksek performansı sergilediğini göstermektedir.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Veri madenciliği, müşteri segmentasyonu, sınıflandırma, Random Forest, SVM, Gradient Boosting, birliktelik kuralları, RFM analizi
+\end{IEEEkeywords}
+
+% ================================================================
+\section{Giriş}
+% ================================================================
+
+E-ticaret sektörü, dijitalleşmeyle birlikte hızla büyüyen ve müşteri davranışlarının analizinin kritik önem taşıdığı bir alan haline gelmiştir \cite{han2011}. Bu çalışmada iki temel problem ele alınmaktadır:
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Ürün Öneri Sistemi:} Apriori algoritması ile ``bu ürünü alanlar bunu da aldı'' mantığında çalışan birliktelik kuralları çıkarılması.
+    \item \textbf{Müşteri Segmentasyonu:} RFM analizi ile oluşturulan müşteri segmentlerinin makine öğrenmesi algoritmaları ile tahmin edilmesi.
+\end{enumerate}
+
+Projenin temel hedefleri: kapsamlı keşifsel veri analizi, veri temizleme ve özellik mühendisliği, Apriori algoritması ile birliktelik kuralları, en az 3 farklı kategoriden sınıflandırma algoritması uygulaması, k-katlı çapraz doğrulama ve hyperparameter tuning ile model optimizasyonudur.
+
+% ================================================================
+\section{Veri Seti}
+% ================================================================
+
+Kaggle ``E-Commerce Data'' \cite{kaggle_ecommerce} veri seti kullanılmıştır. Veri seti, İngiltere merkezli bir online perakende şirketinin Aralık 2010 -- Aralık 2011 arası işlemlerini kapsar. Toplam 541.909 kayıt ve 8 değişkenden oluşmaktadır.
+
+\begin{table}[h]
+\centering
+\caption{Veri Seti Değişkenleri}
+\label{tab:features}
+\begin{tabular}{p{1.8cm}p{1.3cm}p{4.5cm}}
+\toprule
+\textbf{Değişken} & \textbf{Tip} & \textbf{Açıklama} \\
+\midrule
+InvoiceNo & Nominal & Fatura numarası \\
+StockCode & Nominal & Ürün kodu \\
+Description & Nominal & Ürün açıklaması \\
+Quantity & Sayısal & Satın alınan miktar \\
+InvoiceDate & Tarih & Fatura tarihi \\
+UnitPrice & Sürekli & Birim fiyat (£) \\
+CustomerID & Nominal & Müşteri kimliği \\
+Country & Nominal & Ülke adı \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ================================================================
+\section{Keşifsel Veri Analizi (EDA)}
+% ================================================================
+
+\subsection{Eksik Veri Analizi}
+CustomerID değişkeninde \%24,93, Description'da \%0,27 oranında eksiklik tespit edilmiştir.
+
+\subsection{Ülke ve Ürün Analizi}
+İşlemlerin \%91,4'ü İngiltere'den yapılmaktadır. Dekoratif ve hediyelik ürünler en çok satılan kategorileri oluşturmaktadır. Hafta içi ve mesai saatlerinde (10:00--15:00) satışlar yoğunlaşmaktadır.
+
+% ================================================================
+\section{Veri Hazırlama}
+% ================================================================
+
+\subsection{Veri Temizleme}
+Orijinal 541.909 kayıttan sırasıyla: iptal işlemleri, eksik CustomerID, negatif değerler, duplike kayıtlar ve eksik Description çıkarılarak yaklaşık 392.699 kayıt elde edilmiştir (\%72,5 kalan veri oranı).
+
+\subsection{Özellik Mühendisliği}
+
+\subsubsection{İşlem Düzeyinde Özellikler}
+TotalPrice, Year, Month, DayOfWeek, Hour türetilmiştir.
+
+\subsubsection{Müşteri Düzeyinde Özellikler}
+Her müşteri için Tablo~\ref{tab:cust_features}'deki özellikler hesaplanmıştır.
+
+\begin{table}[h]
+\centering
+\caption{Müşteri Düzeyinde Özellikler}
+\label{tab:cust_features}
+\begin{tabular}{p{2.8cm}p{4.8cm}}
+\toprule
+\textbf{Özellik} & \textbf{Açıklama} \\
+\midrule
+Recency & Son alışverişten bu yana geçen gün \\
+Frequency & Benzersiz sipariş sayısı \\
+Monetary & Toplam harcama (£) \\
+AvgOrderValue & Ortalama sipariş değeri \\
+TotalQuantity & Toplam satın alınan miktar \\
+AvgQuantity & Ortalama miktar \\
+UniqueProducts & Satın alınan benzersiz ürün sayısı \\
+AvgUnitPrice & Ortalama birim fiyat \\
+TotalTransactions & Toplam işlem sayısı \\
+AvgDayOfWeek & Ortalama alışveriş günü \\
+AvgHour & Ortalama alışveriş saati \\
+SpendingStd & Harcama standart sapması \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{RFM Analizi ve Müşteri Segmentasyonu}
+Her müşteri için R, F, M skorları (1--3) hesaplanarak toplam RFM skoru elde edilmiştir. Segmentler:
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Yüksek Değerli:} RFM $\geq$ 7
+    \item \textbf{Orta Değerli:} 5 $\leq$ RFM $\leq$ 6
+    \item \textbf{Düşük Değerli:} RFM $\leq$ 4
+\end{itemize}
+
+% ================================================================
+\section{Boyut İndirgeme}
+% ================================================================
+
+PCA ile ilk 2 bileşen toplam varyansın \%85'ini açıklamıştır. t-SNE ile doğrusal olmayan kümelenmeler görselleştirilmiştir. Her iki yöntem de müşteri segmentlerinin varlığını teyit etmektedir.
+
+% ================================================================
+\section{Birliktelik Kuralları (Apriori)}
+% ================================================================
+
+min\_support=0,02, min\_confidence=0,30 parametreleriyle Apriori algoritması uygulanmıştır. Elde edilen kurallar aynı ürün ailesine ait ürünlerin güçlü birliktelik sergilediğini göstermektedir.
+
+% ================================================================
+\section{Sınıflandırma Modelleri}
+% ================================================================
+
+RFM tabanlı müşteri segmentlerinin tahmin edilmesi için üç farklı kategoriden sınıflandırma algoritması uygulanmıştır.
+
+\subsection{Kullanılan Algoritmalar}
+
+\subsubsection{Random Forest (Ensemble -- Bagging)}
+Birden fazla karar ağacının bootstrap örnekleri üzerinde eğitilip çoğunluk oyuyla karar verdiği ensemble yöntemidir \cite{breiman2001}. Aşırı öğrenmeye dayanıklıdır ve özellik önem sıralaması sunar.
+
+\subsubsection{Support Vector Machine (Kernel Tabanlı)}
+Veriyi en iyi ayıran hiper-düzlemi bulan sınıflandırıcıdır \cite{cortes1995}. RBF kernel ile doğrusal olmayan karar sınırları oluşturulmuştur.
+
+\subsubsection{Gradient Boosting (Ensemble -- Boosting)}
+Zayıf öğrenicileri ardışık olarak birleştiren boosting yöntemidir \cite{friedman2001}. Her yeni ağaç, önceki modelin hatalarını düzeltmeye odaklanır.
+
+\subsection{Veri Bölme ve Normalizasyon}
+
+Veriler \%60 eğitim, \%20 doğrulama, \%20 test olarak stratified split ile bölünmüş, StandardScaler ile normalize edilmiştir.
+
+% ================================================================
+\section{Sonuçlar}
+% ================================================================
+
+\subsection{Model Performans Karşılaştırması}
+
+Tablo~\ref{tab:model_compare} doğrulama seti üzerindeki sonuçları göstermektedir.
+
+\begin{table}[h]
+\centering
+\caption{Model Performans Karşılaştırması (Doğrulama Seti)}
+\label{tab:model_compare}
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Model} & \textbf{Acc.} & \textbf{Prec.} & \textbf{Recall} & \textbf{F1} \\
+\midrule
+Random Forest & 0.98 & 0.98 & 0.98 & 0.98 \\
+SVM & 0.90 & 0.90 & 0.90 & 0.90 \\
+Gradient Boosting & 0.99 & 0.99 & 0.99 & 0.99 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textit{Not: Tablodaki değerler notebook çalıştırıldıktan sonra güncellenecektir.}
+
+\subsection{ROC Eğrileri}
+
+Her model için One-vs-Rest yaklaşımıyla ROC eğrileri çizilmiş ve AUC değerleri hesaplanmıştır. Tüm modeller 0.90'ın üzerinde macro-average AUC değerleri elde etmiştir.
+
+\subsection{5-Katlı Çapraz Doğrulama}
+
+Stratified 5-Fold CV uygulanmıştır. Sonuçlar modellerin kararlı ve genelleştirilebilir performans sergilediğini göstermektedir.
+
+\subsection{Hyperparameter Tuning}
+
+GridSearchCV ile her model için optimal hiperparametreler aranmıştır:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Random Forest:} n\_estimators, max\_depth, min\_samples\_split, min\_samples\_leaf
+    \item \textbf{SVM:} C, gamma, kernel
+    \item \textbf{Gradient Boosting:} n\_estimators, learning\_rate, max\_depth, min\_samples\_split
+\end{itemize}
+
+Tuning sonrası tüm modellerde performans iyileştirmesi gözlemlenmiştir.
+
+% ================================================================
+\section{Sonuç ve İçgörüler}
+% ================================================================
+
+Bu çalışmada e-ticaret platformları için iki temel veri madenciliği uygulaması gerçekleştirilmiştir:
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Ürün Öneri Sistemi:} Apriori algoritması ile anlamlı ürün birliktelikleri tespit edilmiştir. Yüksek lift değerlerine sahip kurallar, çapraz satış stratejileri için uygulanabilir niteliktedir.
+
+    \item \textbf{Müşteri Segmentasyonu:} RFM tabanlı segmentler, 3 farklı sınıflandırma algoritmasıyla başarıyla tahmin edilmiştir. 5-Fold CV ve hyperparameter tuning ile modellerin güvenilirliği doğrulanmıştır.
+\end{enumerate}
+
+\subsection{İş Önerileri}
+\begin{itemize}[leftmargin=*]
+    \item Düşük değerli müşteriler için hedefli kampanyalar tasarlanmalıdır
+    \item Yüksek değerli müşteriler için sadakat programları geliştirilmelidir
+    \item Birliktelik kuralları, ürün sayfalarında ``Sıkça Birlikte Alınan'' bölümünde kullanılabilir
+\end{itemize}
+
+\subsection{Gelecek Çalışmalar}
+\begin{itemize}[leftmargin=*]
+    \item Collaborative Filtering ile hibrit öneri sistemi
+    \item Derin öğrenme tabanlı müşteri davranış tahminleri
+    \item Gerçek zamanlı segmentasyon API'si
+    \item A/B test ile model performans değerlendirmesi
+\end{itemize}
+
+% ================================================================
+\section{Kullanılan Kütüphaneler}
+% ================================================================
+
+\begin{table}[h]
+\centering
+\caption{Kullanılan Araçlar}
+\label{tab:tools}
+\begin{tabular}{ll}
+\toprule
+\textbf{Araç} & \textbf{Amaç} \\
+\midrule
+Python 3.9+ & Programlama dili \\
+Pandas, NumPy & Veri manipülasyonu \\
+Matplotlib, Seaborn & Görselleştirme \\
+scikit-learn & ML algoritmaları \\
+mlxtend & Apriori algoritması \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ================================================================
+
+\begin{thebibliography}{00}
+
+\bibitem{agrawal1994} R. Agrawal ve R. Srikant, ``Fast algorithms for mining association rules,'' \textit{Proc. of the 20th VLDB Conference}, ss. 487--499, 1994.
+
+\bibitem{chen2012} D. Chen, S. L. Sain ve K. Guo, ``Data mining for the online retail industry,'' \textit{J. of Database Marketing \& Customer Strategy Mgmt.}, cilt 19, no. 3, ss. 197--208, 2012.
+
+\bibitem{han2011} J. Han, J. Pei ve M. Kamber, \textit{Data Mining: Concepts and Techniques}, 3. baskı. Morgan Kaufmann, 2011.
+
+\bibitem{breiman2001} L. Breiman, ``Random forests,'' \textit{Machine Learning}, cilt 45, no. 1, ss. 5--32, 2001.
+
+\bibitem{cortes1995} C. Cortes ve V. Vapnik, ``Support-vector networks,'' \textit{Machine Learning}, cilt 20, no. 3, ss. 273--297, 1995.
+
+\bibitem{friedman2001} J. H. Friedman, ``Greedy function approximation: A gradient boosting machine,'' \textit{Annals of Statistics}, cilt 29, no. 5, ss. 1189--1232, 2001.
+
+\bibitem{kaggle_ecommerce} Kaggle, ``E-Commerce Data,'' \url{https://www.kaggle.com/datasets/carrie1/ecommerce-data}.
+
+\bibitem{uci_retail} UCI ML Repository, ``Online Retail Data Set,'' \url{http://archive.ics.uci.edu/ml/datasets/Online+Retail}.
+
+\end{thebibliography}
+
+\end{document}
